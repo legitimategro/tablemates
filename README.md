@@ -1,14 +1,48 @@
 # Tablemates
 
-Constraint-first seating for small events. It handles capacity, must-together pairs, must-separate pairs, and reports an unsatisfied state instead of saving an invalid plan.
+Build an event seating plan from explicit hard constraints.
 
-This is a synthetic public evaluation project for testing developer indexing. It does not infer personality, gender, status, or social value; it does not sell tickets, run KYC, notify attendees, or claim Electric Capital acceptance. The account owner must review changes before any external submission.
+Kite event agents can purchase a bounded constraint search. The service reports failure rather than presenting an invalid seating plan.
 
-## Run
+This is an **AI-assisted evaluation project**, maintained under its owning test account. It is not evidence of nine independent human developers, real customers, payment acceptance, or Electric Capital registration.
+
+## Run locally
+
+Requires Node.js 20.11 or newer.
 
 ```sh
+npm install
 npm test
 npm start
+# Open http://127.0.0.1:3000
+npm run check:kite
 ```
 
-Open `http://localhost:3000`. The search is deterministic for the same input and returns conflict identifiers for direct contradictions.
+Local mode is free and never creates an on-chain payment receipt. Live network checks call the Kite RPC and verify its chain ID.
+
+## What changed in 0.2.0
+
+Transitive must-together components, direct contradiction IDs, per-table mentor constraints, pinned assignments and a fixed search-node budget.
+
+## Kite integration
+
+- A live Kite chain check at `GET /api/kite/network` (testnet by default).
+- A service descriptor at `GET /kite-service.json`, including input shape, rules version and Kite network. This is our discovery format, not a claim of official registry certification.
+- Immutable tasks at `POST /v1/jobs`, with content hash, task-specific nonce, expiry and a separate access token.
+- An opt-in x402 **v2 exact/EVM** paid endpoint at `POST /v1/jobs/{id}/execute`, using `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE` and `PAYMENT-RESPONSE`.
+- Pieverse verify → this project's business processor → settle → deliver. Uncertain settlements withhold output and are never retried automatically.
+- A private file ledger prevents reuse of a payment nonce across restarts. Do not share one ledger between replicas or enable multiple replicas.
+
+The task-specific nonce extension requires an explicit signing client that preserves it. Stock Passport/client interoperability has **not** been demonstrated. No real authorization or settlement is performed by the test suite. See [Kite integration notes](docs/KITE-INTEGRATION.md).
+
+## Scope and limits
+
+No social scoring, inferred characteristics, ticketing or attendee messages. Not-found within budget is not a mathematical infeasibility proof.
+
+Local-mode inputs/results are in-memory only. Paid-mode tasks/results are encrypted on a private persistent volume and recoverable after restart with the original access token and storage key. API access expires at 30 minutes; encrypted source files are purged within the next 30 seconds. Minimal nonce/settlement records are retained. Pending settlement still requires operator reconciliation. Default binding is localhost. This release is an integration prototype, not completion of the full PRD.
+
+## Verification
+
+`npm test` runs business regressions and payment-state tests with a **fake facilitator**. Live chain and facilitator support probes are separate read-only checks. An HTTPS deployment, verified token contract/domain, funded operator wallet, real payment evidence and external review are still required before ecosystem submission.
+
+Source references: [Kite seller guide](https://docs.gokite.ai/passport/seller), [Kite networks](https://docs.gokite.ai/kite-chain/1-getting-started/network-information), [live facilitator capabilities](https://facilitator.pieverse.io/v2/supported).

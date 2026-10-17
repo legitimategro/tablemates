@@ -1,19 +1,94 @@
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { start } from './lib/server.mjs';
+import { run, validate } from './core.mjs';
+export * from './core.mjs';
+export const spec = { ...{
+  "slug": "tablemates",
+  "repo": "tablemates",
+  "owner": "legitimategro",
+  "title": "Tablemates",
+  "purpose": "Build an event seating plan from explicit hard constraints",
+  "workflow": "Kite event agents can purchase a bounded constraint search. The service reports failure rather than presenting an invalid seating plan.",
+  "colors": [
+    "#fcf3e8",
+    "#4a2f32",
+    "#a53e43"
+  ],
+  "required": [
+    "people",
+    "tableCount",
+    "capacity"
+  ],
+  "sample": {
+    "people": [
+      {
+        "id": "A",
+        "mentor": true
+      },
+      {
+        "id": "B",
+        "mentor": false
+      },
+      {
+        "id": "C",
+        "mentor": true
+      },
+      {
+        "id": "D",
+        "mentor": false
+      }
+    ],
+    "tableCount": 2,
+    "capacity": 2,
+    "together": [
+      [
+        "A",
+        "B"
+      ]
+    ],
+    "separate": [
+      [
+        "C",
+        "B"
+      ]
+    ],
+    "mentorPerTable": true,
+    "locked": {}
+  },
+  "changed": "Transitive must-together components, direct contradiction IDs, per-table mentor constraints, pinned assignments and a fixed search-node budget.",
+  "limits": "No social scoring, inferred characteristics, ticketing or attendee messages. Not-found within budget is not a mathematical infeasibility proof.",
+  "version": "0.2.0",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "people",
+      "tableCount",
+      "capacity"
+    ],
+    "properties": {
+      "people": {
+        "type": "array"
+      },
+      "tableCount": {
+        "type": "integer"
+      },
+      "capacity": {
+        "type": "integer"
+      },
+      "together": {
+        "type": "array"
+      },
+      "separate": {
+        "type": "array"
+      },
+      "mentorPerTable": {
+        "type": "boolean"
+      },
+      "locked": {
+        "type": "object"
+      }
+    }
+  }
+}, run, validate };
+if (process.argv[1] === fileURLToPath(import.meta.url)) start(spec);
 
-function relationSet(pairs) { const map = new Map(); for (const [a, b] of pairs) { if (!map.has(a)) map.set(a, new Set()); if (!map.has(b)) map.set(b, new Set()); map.get(a).add(b); map.get(b).add(a); } return map; }
-
-export function assignTables(people, tableCount, capacity, mustTogether = [], mustSeparate = []) {
-  const conflicts = relationSet(mustSeparate), member = new Map(people.map(person => [person.id, person]));
-  for (const [a, b] of mustTogether) if (conflicts.get(a)?.has(b)) return { status: '冲突', conflictIds: [`together:${a}:${b}`], tables: [] };
-  const grouped = [], consumed = new Set();
-  for (const person of people) { if (consumed.has(person.id)) continue; const ids = [person.id]; for (const [a, b] of mustTogether) if (a === person.id) ids.push(b); else if (b === person.id) ids.push(a); ids.forEach(id => consumed.add(id)); grouped.push(ids.map(id => member.get(id))); }
-  const tables = Array.from({ length: tableCount }, (_, index) => ({ id: index + 1, people: [] }));
-  function search(index) { if (index === grouped.length) return true; const group = grouped[index]; if (group.length > capacity) return false; for (const table of tables) { if (table.people.length + group.length > capacity) continue; if (group.some(person => table.people.some(existing => conflicts.get(person.id)?.has(existing.id)))) continue; table.people.push(...group); if (search(index + 1)) return true; table.people.splice(-group.length); } return false; }
-  if (!search(0)) return { status: '未找到', conflictIds: ['capacity-or-separation'], tables };
-  return { status: '已验证', conflictIds: [], tables };
-}
-export function validateTables(result, capacity) { return result.tables.flatMap(table => table.people.length > capacity ? [`table:${table.id}:over-capacity`] : []); }
-
-function html() { return `<!doctype html><meta charset="utf-8"><title>同席 · 小型活动分桌</title><style>body{font:16px system-ui;margin:0;background:#fcf3e8;color:#4a2f32}main{max-width:900px;margin:auto;padding:32px}textarea{width:100%;min-height:150px;font:14px ui-monospace;padding:10px;box-sizing:border-box}section{background:#fffaf3;border:1px solid #e6cfc5;padding:18px;margin:16px 0}button{background:#a53e43;color:#fff;border:0;padding:10px 14px;border-radius:3px}pre{white-space:pre-wrap;background:#f5d8cf;padding:12px}</style><main><p>同席 / 小型活动分桌</p><h1>先满足必须关系，再处理软偏好。</h1><section><label>参加者 JSON<textarea id="people">[{"id":"A","name":"陈晴"},{"id":"B","name":"刘安"},{"id":"C","name":"许远"},{"id":"D","name":"林遥"},{"id":"E","name":"周宁"},{"id":"F","name":"顾晨"}]</textarea></label><label>必须同桌 JSON <input id="together" value="[[\"A\",\"B\"]]" size="24"></label><label>必须分开 JSON <input id="separate" value="[[\"C\",\"D\"]]" size="24"></label></section><button id="run">生成分桌</button><pre id="out">等待输入</pre></main><script>run.onclick=async()=>{const r=await fetch('/api/assign',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({people:JSON.parse(people.value),together:JSON.parse(together.value),separate:JSON.parse(separate.value)})});out.textContent=JSON.stringify(await r.json(),null,2)}</script>`; }
-if (process.argv[1] === fileURLToPath(import.meta.url)) createServer((req, res) => { if (req.method === 'GET') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html()); return; } let body = ''; req.on('data', c => { body += c; }); req.on('end', () => { try { const input = JSON.parse(body); const result = assignTables(input.people, 3, 3, input.together, input.separate); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ...result, errors: validateTables(result, 3) })); } catch (error) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: error.message })); } }); }).listen(process.env.PORT || 3000);
