@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { start } from './lib/server.mjs';
 import { run, validate } from './core.mjs';
+import { product } from './project.mjs';
 export * from './core.mjs';
 export const spec = { ...{
   "slug": "tablemates",
@@ -57,7 +58,7 @@ export const spec = { ...{
   },
   "changed": "Transitive must-together components, direct contradiction IDs, per-table mentor constraints, pinned assignments and a fixed search-node budget.",
   "limits": "No social scoring, inferred characteristics, ticketing or attendee messages. Not-found within budget is not a mathematical infeasibility proof.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -89,6 +90,6 @@ export const spec = { ...{
       }
     }
   }
-}, run, validate };
+}, run, validate, product };
 if (process.argv[1] === fileURLToPath(import.meta.url)) start(spec);
 
